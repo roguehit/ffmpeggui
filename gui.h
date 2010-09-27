@@ -9,6 +9,7 @@ int option_sanity_check()
 AVFormatContext *pFormatCtx;
 av_register_all();
 
+int videoStream=0,i=0;
 /*
 Perform File based Sanity Checks before beginning the transcoding Process
 */
