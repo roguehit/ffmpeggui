@@ -65,21 +65,23 @@ void source_select( GtkWidget *widget,
 
 void* transcode_video(void* tid)
 {
-
+char ff_option[2000]; 	
 print_selected_option();
 fprintf(stderr,"Thread Created\n");
 
 /*This does not work from inside of a thread*/
 //show_popup("Transcoder","Done!");
 
-sleep(5);
+
 
 /*
 Invoke FFmpeg here
 FIXME system() sucks but no other option
 FIXME please read ffmpeg.c & try making another module
 */
-
+sprintf(ff_option,"ffmpeg -i %s -vcodec libx264 -s %dx%d -y out.%s",transcode.filename,transcode.x_res,transcode.y_res,transcode.format);
+printf("%s\n",ff_option);
+system(ff_option);
 
 
 transcode.job_running=0;
@@ -377,9 +379,9 @@ int main( int   argc, char *argv[] )
     
 #if 1
    transcode.format=(char*)malloc(4);
-   strcpy(transcode.format,"MP4");
+   strcpy(transcode.format,"mp4");
    GtkWidget *radio_button_11= gtk_radio_button_new_with_label( NULL, "MP4" );
-   strcpy(e->format,"MP4");  
+   strcpy(e->format,"mp4");  
    e->rb=radio_button_11; 
    g_signal_connect( G_OBJECT( radio_button_11 ),"clicked",G_CALLBACK( format_call_back ),(gpointer)e );
 
@@ -389,7 +391,7 @@ int main( int   argc, char *argv[] )
 
 
    GtkWidget *radio_button_22= gtk_radio_button_new_with_label_from_widget( GTK_RADIO_BUTTON( radio_button_11 ), "AVI" );
-   strcpy(f->format,"AVI");   
+   strcpy(f->format,"avi");   
    f->rb=radio_button_22; 
    g_signal_connect( G_OBJECT( radio_button_22 ),"clicked",G_CALLBACK( format_call_back ),(gpointer)f );
    
@@ -399,7 +401,7 @@ int main( int   argc, char *argv[] )
 
 
   GtkWidget *radio_button_33=  gtk_radio_button_new_with_label_from_widget(  GTK_RADIO_BUTTON( radio_button_22 ), "MPEG2 TS" );
-   strcpy(g->format,"MPEG2TS");   
+   strcpy(g->format,"ts");   
    g->rb=radio_button_33; 
    g_signal_connect( G_OBJECT( radio_button_33 ),"clicked",G_CALLBACK( format_call_back ),(gpointer)g );
 
@@ -407,7 +409,7 @@ int main( int   argc, char *argv[] )
 
 
  GtkWidget *radio_button_44=  gtk_radio_button_new_with_label_from_widget(  GTK_RADIO_BUTTON( radio_button_33 ), "FLV" );
-   strcpy(h->format,"FLV");   
+   strcpy(h->format,"flv");   
    h->rb=radio_button_44; 
    g_signal_connect( G_OBJECT( radio_button_44 ),"clicked",G_CALLBACK( format_call_back ),(gpointer)h );
    
