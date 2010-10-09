@@ -63,29 +63,35 @@ void source_select( GtkWidget *widget,
 
 }
 
-void* transcode_video(void* tid)
+void* transcode_video(void* temp)
 {
+GtkWidget* button =(GtkWidget*) temp;
+GtkWidget* label;
 char ff_option[2000]; 	
 print_selected_option();
 fprintf(stderr,"Thread Created\n");
-
+struct timeval now;
 /*This does not work from inside of a thread*/
 //show_popup("Transcoder","Done!");
+gettimeofday(&now,NULL);
 
-
-
+gtk_button_set_label (GTK_BUTTON (button),"Transcoding in Progress.....");
+gtk_widget_show(button);
 /*
 Invoke FFmpeg here
 FIXME system() sucks but no other option
 FIXME please read ffmpeg.c & try making another module
 */
-sprintf(ff_option,"ffmpeg -i %s -vcodec libx264 -s %dx%d -y out.%s",transcode.filename,transcode.x_res,transcode.y_res,transcode.format);
-printf("%s\n",ff_option);
+gtk_widget_show(label);
+gtk_widget_show(button);
+sprintf(ff_option,"ffmpeg -y -i %s -vcodec libx264 -vpre slow -vpre main -crf 22 -loglevel quiet -s %dx%d %s/%d.%s", transcode.filename,transcode.x_res,transcode.y_res,transcode.dest_path,now.tv_usec>>9,transcode.format);
+//printf("%s\n",ff_option);
 system(ff_option);
 
 
 transcode.job_running=0;
-
+gtk_button_set_label (GTK_BUTTON (button),"Start Transcoding");
+gtk_widget_show(button);
 pthread_exit(0);
 }
 
@@ -119,7 +125,7 @@ if(!transcode.job_running)
 
 transcode.job_running=1;
 fprintf(stderr,"Time to start ffmpeg on a thread\n");
-pthread_create(&ffmpeg_invoker,NULL,transcode_video,(void*)1);
+pthread_create(&ffmpeg_invoker,NULL,transcode_video,(void*) data);
 pthread_detach(&ffmpeg_invoker);
 }
 
@@ -155,7 +161,8 @@ void change_in_entry2( GtkWidget *widget,
    	{
 	fprintf(stderr,"Error creating the directory, Errno %d\n",errno);
 	sprintf(error,"Error creating the directory, Errno %d\n",errno);
-	}
+	strcpy(transcode.dest_path,pathname);
+        }
 
    else {
    	fprintf(stderr,"Directory created sucessfully\n");
@@ -302,7 +309,7 @@ int main( int   argc, char *argv[] )
 
    
 
-    sprintf(home,"%s",getenv("HOME"));
+    sprintf(home,"%s",getenv("PWD"));
     transcode.dest_path=(char*)malloc(strlen(home)+1);
     strcpy(transcode.dest_path,home);
     gtk_entry_set_text (GTK_ENTRY (entry2),home);
@@ -432,7 +439,7 @@ gtk_box_pack_start( GTK_BOX( mainbox ),hor_box , FALSE, FALSE, 0);
     /* Now when the button is clicked, we call the "callback" function
      * with a pointer to "button 1" as its argument */
 
-    gtk_signal_connect (GTK_OBJECT (button), "clicked", GTK_SIGNAL_FUNC (start_ffmpeg), (gpointer) 1);
+    gtk_signal_connect (GTK_OBJECT (button), "clicked", GTK_SIGNAL_FUNC (start_ffmpeg), (gpointer) button);
 
     gtk_box_pack_start(GTK_BOX(mainbox), button, TRUE, TRUE, 0);
    
