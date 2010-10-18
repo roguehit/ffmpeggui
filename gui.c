@@ -24,27 +24,51 @@ gint delete_event( GtkWidget *widget,
     return(FALSE);
 }
 
+char * strrev(char * string) {
+  int length = strlen(string);
+  char * result = malloc(length+1);
+  if( result != NULL ) {
+    int i,j;                                         result[length] = '\0';
+    for ( i = length-1, j=0;   i >= 0;   i--, j++ )  result[j] = string[i];
+  }
+  return result;
+}
+
+
 void store_filename(GtkFileSelection *file_selection, gpointer data)
 {
-  AVFormatContext *fmt_ctx;
-  int ret;
-    
-  filename = gtk_file_selection_get_filename(GTK_FILE_SELECTION(file_selection_box));
+
+  int i = 0;
+  int j = 0;
+  int start = 0, end = 0;
+   
+  filename = (gchar*) gtk_file_selection_get_filename(GTK_FILE_SELECTION(file_selection_box));
   gtk_entry_set_text (GTK_ENTRY (entry1), filename);
 
   
-  transcode.filename=(char*)malloc(strlen(filename)+1);
-  strcpy(transcode.filename,filename);
-  printf("%s\n",filename);
+  transcode.filepath=(char*)malloc(strlen(filename)+1);
+  strcpy(transcode.filepath,filename);
+  transcode.filename=(char*)malloc(100);
   
-  return ;
+  for(i = strlen(filename) ; filename[i] != '/' ; i-- ){
+  if(filename[i] == '.')
+  end = i;
+  }
+  start = ++i;
+  for(i = start,j = 0 ; i < end ; i++,j++)
+  transcode.filename[j] = filename [i];
+  
+  transcode.filename[j] = '\0';
+  
+  //fprintf(stderr,"Start:%d End:%d Filename %s\n",start,end,transcode.filename);  
+  return;
 }
 
 void source_select( GtkWidget *widget,
                gpointer   *entry )
 {
     
-   file_selection_box = gtk_file_selection_new("Please select a file for editing.");
+  file_selection_box = gtk_file_selection_new("Please select a file for editing.");
 
   /*-- Link the ok button to the store_filename function --*/   
   gtk_signal_connect (GTK_OBJECT (GTK_FILE_SELECTION(file_selection_box)->ok_button), 
@@ -65,8 +89,8 @@ void source_select( GtkWidget *widget,
 
 void* transcode_video(void* temp)
 {
-GtkWidget* button =(GtkWidget*) temp;
-GtkWidget* label;
+ProgressData* progress =(ProgressData*) temp;
+
 char ff_option[2000]; 	
 print_selected_option();
 fprintf(stderr,"Thread Created\n");
@@ -74,37 +98,47 @@ struct timeval now;
 /*This does not work from inside of a thread*/
 //show_popup("Transcoder","Done!");
 gettimeofday(&now,NULL);
+progress->call_next= 1;
 
-gtk_button_set_label (GTK_BUTTON (button),"Transcoding in Progress.....");
-gtk_widget_show(button);
+gtk_button_set_label (GTK_BUTTON (progress->button),"Transcoding in Progress.....");
+gtk_widget_show(progress->button);
+gtk_progress_bar_set_text (GTK_PROGRESS_BAR (progress->progressbar), "Working ....");   
+
 /*
 Invoke FFmpeg here
 FIXME system() sucks but no other option
 FIXME please read ffmpeg.c & try making another module
 */
-gtk_widget_show(label);
-gtk_widget_show(button);
-sprintf(ff_option,"ffmpeg -y -i %s -vcodec libx264 -vpre slow -vpre main -crf 22 -loglevel quiet -s %dx%d %s/%d.%s", transcode.filename,transcode.x_res,transcode.y_res,transcode.dest_path,now.tv_usec>>9,transcode.format);
+gtk_widget_show(progress->button);
+sprintf(ff_option,"ffmpeg -y -i %s -vcodec libx264 -vpre slow -vpre main -cqp 28 -sc_threshold 60 -i_qfactor 1 -b_qfactor 1 -loglevel quiet -s %dx%d %s/%s.%s 2> frame", transcode.filepath,transcode.x_res,transcode.y_res,transcode.dest_path,transcode.filename,transcode.format);
 //printf("%s\n",ff_option);
+g_timeout_add (1000, progress_timeout, progress);
+
 system(ff_option);
 
+gtk_progress_bar_set_fraction (GTK_PROGRESS_BAR (progress->progressbar), 0.0);
+transcode.job_running = 0;
+progress->call_next = 0;
+gtk_button_set_label (GTK_BUTTON (progress->button),"Start Transcoding");
+gtk_progress_bar_set_text (GTK_PROGRESS_BAR (progress->progressbar), "Done !");   
 
-transcode.job_running=0;
-gtk_button_set_label (GTK_BUTTON (button),"Start Transcoding");
-gtk_widget_show(button);
+gtk_widget_show(progress->button);
+system("rm frame");
 pthread_exit(0);
 }
 
 
-void start_ffmpeg (GtkWidget *widget,
-               gpointer data )
+void start_ffmpeg (GtkWidget *widget, gpointer data )
 {
 pthread_t ffmpeg_invoker;
 int ret;
+ProgressData *progress = (ProgressData*) data;
+
+
 
 if(!option_sanity_check())
 {
-fprintf(stderr,"Problem in GUI Selections\n");
+printf("Problem in GUI Selections\n");
 return;
 }
 
@@ -113,20 +147,19 @@ Check to see if Default Resolution is required
 */
 
 if(transcode.x_res==0)
-if(ret=get_resolution(transcode.filename) == 0 )
+if( (ret = get_resolution(transcode.filepath)) == 0 )
 {
-fprintf(stderr,"Error in Setting Resolution %d\n",ret);
+printf("Error in Setting Resolution %d\n",ret);
 return;
 }
 
 
 if(!transcode.job_running)
 {
-
 transcode.job_running=1;
-fprintf(stderr,"Time to start ffmpeg on a thread\n");
-pthread_create(&ffmpeg_invoker,NULL,transcode_video,(void*) data);
-pthread_detach(&ffmpeg_invoker);
+printf("Time to start ffmpeg on a thread\n");
+pthread_create(&ffmpeg_invoker,NULL,transcode_video,(void*) progress);
+pthread_detach(ffmpeg_invoker);
 }
 
 else
@@ -139,7 +172,7 @@ void change_in_entry1( GtkWidget *widget,
                gpointer   *entry )
 {
    gchar *entry_text;
-   entry_text = gtk_entry_get_text(GTK_ENTRY(entry));
+   entry_text = (gchar*) gtk_entry_get_text(GTK_ENTRY(entry));
    printf("Entry contents: %s\n", entry_text);
 }
 
@@ -149,7 +182,7 @@ void change_in_entry2( GtkWidget *widget,
   
    gchar *entry_text;
    errno=0;
-   entry_text = gtk_entry_get_text(GTK_ENTRY(entry));
+   entry_text = (gchar*) gtk_entry_get_text(GTK_ENTRY(entry));
    printf("Creating directory%s\n", entry_text);
    char error[200];	
    char* pathname =(char*)malloc(sizeof(char)*strlen(entry_text)+1);
@@ -207,11 +240,48 @@ void format_call_back( GtkButton *b, gpointer rb )
     strcpy(transcode.format,temp->format);
 
     if( gtk_toggle_button_get_active( GTK_TOGGLE_BUTTON( temp->rb ) ) ) 
-    fprintf(stderr,"Format is %s\n",temp->format);	
+    printf("Format is %s\n",temp->format);	
 }
 
+static gboolean progress_timeout( gpointer data )
+{
+  ProgressData * progress = (ProgressData *)data;
+  FILE *f1;
+  int c;
+  int temp[5]; 
+  int i = 0;
+  float time;
+  float new_val;   
+  
+  if(!progress->call_next)
+  return FALSE;  
 
-int main( int   argc, char *argv[] )
+  f1 = fopen("frame","r");
+  while( (c = getc(f1)) != EOF )
+  {
+  if(c == 0x20)
+  {i=0;continue;}
+
+  temp[i++] = c;
+  i %= 5;
+  if(temp[0]=='t' && temp[1]=='i' && temp[2]=='m' && temp[3]=='e' && temp[4]=='=')
+  fscanf(f1,"%f",&time);
+  }
+
+  if(time > transcode.duration) 
+  time = 0;
+
+  new_val = time / transcode.duration;
+  //new_val = gtk_progress_bar_get_fraction (GTK_PROGRESS_BAR (progress->progressbar)) + 0.01; 
+  
+  gtk_progress_bar_set_fraction (GTK_PROGRESS_BAR (progress->progressbar), new_val);
+  fclose(f1);
+
+  return TRUE ; 
+ 
+}
+
+int main( int argc, char *argv[] )
 {
     /* GtkWidget is the storage type for widgets */
     GtkWidget *window;
@@ -219,7 +289,8 @@ int main( int   argc, char *argv[] )
     GtkWidget *mainbox,*box2,*box3;
     GtkWidget *label;
     GtkWidget *frame;
-    
+    fclose(stdout);
+    ProgressData *progress;
     /*FIXME Use array of pointers*/
     radio *a,*b,*c,*d,*e,*f,*g,*h;
 
@@ -234,7 +305,7 @@ int main( int   argc, char *argv[] )
     h=(radio*)malloc(sizeof(radio));
  
     char home[250];
-    int z=5;
+
     /* This is called in all GTK applications. Arguments are parsed
      * from the command line and are returned to the application. */
     gtk_init (&argc, &argv);
@@ -244,8 +315,7 @@ int main( int   argc, char *argv[] )
                                       "title", "Transcoder 1.0",
                                       "default-height", 150,
                                       "default-width", 400,
-                                      "border-width", 10,
-                                       NULL );
+                                      "border-width", 10, NULL );
 
     gtk_signal_connect (GTK_OBJECT (window), "delete_event",
                         GTK_SIGNAL_FUNC (delete_event), NULL);
@@ -333,7 +403,7 @@ int main( int   argc, char *argv[] )
 #if 1 
  
 
-   frame = gtk_frame_new ("Select Resolution");
+   frame = gtk_frame_new ("Select Output Resolution");
    gtk_box_pack_start( GTK_BOX( hor_box ),ver_box , FALSE, FALSE, 0); 
    gtk_container_add (GTK_CONTAINER (ver_box), frame);
    
@@ -378,7 +448,7 @@ int main( int   argc, char *argv[] )
     
     ver_box= gtk_vbox_new( FALSE, 0 );
 
-   frame = gtk_frame_new ("Select Format");
+   frame = gtk_frame_new ("Select Output Format");
    gtk_box_pack_start( GTK_BOX( hor_box ),ver_box , FALSE, FALSE, 0); 
    gtk_container_add (GTK_CONTAINER (ver_box), frame);
 
@@ -432,16 +502,29 @@ gtk_box_pack_start( GTK_BOX( mainbox ),hor_box , FALSE, FALSE, 0);
     gtk_widget_show (label);
     /* The order in which we show the buttons is not really important, but I
      * recommend showing the window last, so it all pops up at once. */
-    
+    progress = g_malloc (sizeof (ProgressData));
 
-    button = gtk_button_new_with_label ("Start Transcoding");
+    progress->button  = gtk_button_new_with_label ("Start Transcoding");
     
     /* Now when the button is clicked, we call the "callback" function
      * with a pointer to "button 1" as its argument */
+    
+    gtk_signal_connect (GTK_OBJECT (progress->button), "clicked", GTK_SIGNAL_FUNC (start_ffmpeg), (gpointer) progress);
 
-    gtk_signal_connect (GTK_OBJECT (button), "clicked", GTK_SIGNAL_FUNC (start_ffmpeg), (gpointer) button);
+    gtk_box_pack_start(GTK_BOX(mainbox), progress->button, TRUE, TRUE, 0);
+   
+    progress->progressbar = gtk_progress_bar_new ();
 
-    gtk_box_pack_start(GTK_BOX(mainbox), button, TRUE, TRUE, 0);
+    label = gtk_label_new ("____________________________________________");
+  //gtk_container_add (GTK_CONTAINER (frame), label);
+    gtk_box_pack_start (GTK_BOX (mainbox), label, FALSE, FALSE, 0);
+    gtk_widget_show (label);    
+
+ 
+    //gtk_progress_bar_set_text (GTK_PROGRESS_BAR (progress->progressbar), "Progress Bar");   
+   
+    gtk_box_pack_start(GTK_BOX(mainbox), progress->progressbar, TRUE, TRUE, 0);   
+    
    
     //gtk_widget_show(mainbox);
     gtk_widget_show_all( GTK_WIDGET( window ) );

@@ -1,0 +1,22 @@
+Following are the pre-requistes for this program to work properly
+This is tested to work on Ubuntu 10.04 (32bit)
+
+1) sudo apt-get install build-essential checkinstall yasm texi2html libfaac-dev libmp3lame-dev libopencore-amrnb-dev libopencore-amrwb-dev libsdl1.2-dev libtheora-dev libvorbis-dev libvpx-dev libx11-dev libxfixes-dev libxvidcore-dev zlib1g-dev
+
+
+Install ffmpeg compiled with libx264 support using
+2) sudo dpkg -i ffmpeg_4:SVN-r25329-1_i386.deb
+
+Incase (2) fails then follow the instructions on 
+http://ubuntuforums.org/showthread.php?t=786095
+
+Making sure the dynamic linker run-time bindings are configured
+3) sudo ldconfig
+
+Alternatively you can run the "install" program from commandline which would 
+perform steps 1,2,3 for you.
+
+Run the GUI program using 
+4) ./gui 
+
+If you want this to be invoked from everywhere then copy "gui" to /usr/bin

@@ -12,10 +12,12 @@
 #include <stdio.h>
 #include <sys/stat.h> 
 #include <string.h>
+#include <sys/time.h>
+#include <pthread.h>
 
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
-
+#include <libavdevice/avdevice.h>
 
 GtkWidget *entry1,*entry2;
 GtkWidget *file_selection_box;
@@ -29,6 +31,7 @@ char format[10];
 typedef struct _radio radio;
 
 
+static const char *unit_second_str          = "s"    ;
 /*
 This structure contains all transcoding related 
 members. Currently only implements resolution change 
@@ -43,6 +46,8 @@ int framerate;
 char* format;
 char* filename;
 char* dest_path;
+char* filepath;
+int duration;
 volatile int job_running; /* Set/Reset in threads hence volatile*/
 
 }transcode;
@@ -55,5 +60,11 @@ void print_selected_option();
 int  option_sanity_check();
 void show_popup(char*,char*);
 int get_resolution(char*);
+
+typedef struct _ProgressData {
+  GtkWidget *progressbar;
+  GtkWidget *button;
+  volatile int call_next;
+} ProgressData;
 
 #endif
